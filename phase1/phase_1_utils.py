@@ -5,8 +5,8 @@ import datetime
 import requests
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
-TINYFISH_API_KEY = "your_tinyfish_api_key_here"
-TAVILY_API_KEY   = "your_tavily_api_key_here"
+TINYFISH_API_KEY = "sk-tinyfish-B-OYpXy9I-LB927hQvvJ9n32vsp6L0at"
+TAVILY_API_KEY   = "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"
 OLLAMA_URL       = "http://localhost:11434/api/chat"
 OLLAMA_MODEL     = "qwen2.5:7b"
 CURRENT_YEAR     = datetime.date.today().year

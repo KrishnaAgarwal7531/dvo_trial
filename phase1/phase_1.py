@@ -3,7 +3,7 @@ from phase_1_utils    import fmt_source
 from phase_1_search   import run_tinyfish, run_tavily
 from phase_1_extract  import extract_all
 from phase_1_aggregate import aggregate
-
+from phase_1_validate import validate_all
 # ── CONFIG — change these before running ──────────────────────────────────────
 NAME    = "Sun Xiushun"
 COMPANY = ""   # optional — leave as "" if not available
@@ -81,6 +81,13 @@ if __name__ == "__main__":
     print(f"\n  Deduplicated to {len(all_pages)} unique pages "
           f"(TinyFish: {len(tf_pages)} full pages + Tavily: {len(tv_pages)} snippets)")
 
+    # ── Step 1.5: Validate ────────────────────────────────────────────────   # ← ADD
+    print(f"\n  STEP 2/5 — Validating pages are about the right person...")    # ← ADD
+    all_pages, rejected = validate_all(all_pages, NAME, COMPANY)               # ← ADD
+    if not all_pages:                                                           # ← ADD
+        print(f"\n  ✗ No valid pages found — aborting.")                       # ← ADD
+        sys.exit(1)     
+        
     # ── Step 2: Extract ───────────────────────────────────────────────────────
     print(f"\n  STEP 2/4 — Extracting structured data from each page...")
     extractions = extract_all(all_pages, NAME)
