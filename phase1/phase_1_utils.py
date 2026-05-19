@@ -69,6 +69,7 @@ def ask_llm(prompt: str) -> str:
                 json={
                     "model": OLLAMA_MODEL,
                     "messages": [{"role": "user", "content": prompt}],
+                    "format": "json",
                     "stream": False,
                 },
                 timeout=120,
