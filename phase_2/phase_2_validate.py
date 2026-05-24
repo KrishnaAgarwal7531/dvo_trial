@@ -18,48 +18,75 @@ def _heuristic_validate(url: str, snippet: str, name: str, company: str) -> tupl
 
     name_parts = [p for p in name.lower().split() if len(p) > 2]
 
-    # STRONG: name parts in URL
+    # Split parts into weak (short, e.g. "chen", "lee") vs strong (longer, more unique)
+    weak_parts   = [p for p in name_parts if len(p) <= 4]
+    strong_parts = [p for p in name_parts if len(p) > 4]
+
+    # STRONG SIGNAL: name parts in URL
     url_part_hits = sum(1 for p in name_parts if p in url_lower)
     name_slug     = name.lower().replace(" ", "_")
     name_slug2    = name.lower().replace(" ", "-")
     name_in_url   = name_slug in url_lower or name_slug2 in url_lower or url_part_hits >= 2
 
-    # STRONG: name parts in start of snippet (first 150 chars)
+    # STRONG SIGNAL: name parts in start of snippet (first 150 chars)
     early_part_hits = sum(1 for p in name_parts if p in snippet_lower[:150])
     name_in_start   = name.lower() in snippet_lower[:150] or early_part_hits >= 2
 
-    # MEDIUM: any name part anywhere in snippet
-    snippet_part_hits = sum(1 for p in name_parts if p in snippet_lower)
-    name_in_snippet   = snippet_part_hits >= 1
+    # Full name check (also try reversed order, e.g. "Tianqiao Chen" vs "Chen Tianqiao")
+    reversed_name    = " ".join(reversed(name.lower().split()))
+    full_name_match  = name.lower() in snippet_lower or reversed_name in snippet_lower
 
-    # SUPPORT signals
+    # Snippet part hits split by strength
+    weak_hits         = sum(1 for p in weak_parts   if p in snippet_lower)
+    strong_hits       = sum(1 for p in strong_parts if p in snippet_lower)
+
+    # name_in_snippet requires strong hit OR multiple weak hits
+    # Prevents single common surname (e.g. "chen") from counting as a match
+    name_in_snippet = (
+        strong_hits >= 1                              # a long/unique name part matched
+        or (weak_hits >= 2 and len(weak_parts) >= 2)  # at least 2 short parts both matched
+    )
+
+    # SUPPORT signals (unchanged)
     has_bio_kw  = any(kw in snippet_lower for kw in BIO_KEYWORDS)
     has_company = bool(company) and company.lower() in snippet_lower
 
-    strong_signals  = sum([name_in_url, name_in_start])
+    strong_signals  = sum([name_in_url, name_in_start, full_name_match])
     support_signals = sum([has_bio_kw, has_company])
 
-    if strong_signals >= 1:
+    # DECISION LOGIC (Fix 1: tightened medium path now requires both support signals)
+    if full_name_match and support_signals >= 1:
+        # Full name present + at least one support signal = high confidence
+        is_valid   = True
+        confidence = "high"
+    elif strong_signals >= 1:
+        # Name in URL or name in snippet start
         is_valid   = True
         confidence = "high" if support_signals >= 1 else "medium"
-    elif name_in_snippet and support_signals >= 1:
+    elif name_in_snippet and support_signals >= 2:
+        # FIX 1: was `support_signals >= 1`, now requires BOTH bio_kw AND company
         is_valid   = True
         confidence = "medium"
     else:
         is_valid   = False
         confidence = "low"
 
+    # Reason string for logging
     parts = []
-    if name_in_url:     parts.append(f"name in URL ({url_part_hits} parts matched)")
-    if name_in_start:   parts.append(f"name in snippet start ({early_part_hits} parts matched)")
-    if name_in_snippet: parts.append(f"name in snippet ({snippet_part_hits} parts matched)")
-    if has_bio_kw:      parts.append("bio keywords found")
-    if has_company:     parts.append("company mentioned")
-    if not parts:       parts.append(f"no name signals found (url hits: {url_part_hits}, snippet hits: {snippet_part_hits})")
+    if full_name_match:   parts.append("full name match in snippet")
+    if name_in_url:       parts.append(f"name in URL ({url_part_hits} parts matched)")
+    if name_in_start:     parts.append(f"name in snippet start ({early_part_hits} parts matched)")
+    if strong_hits:       parts.append(f"strong name parts in snippet ({strong_hits} matched)")
+    if weak_hits:         parts.append(f"weak name parts in snippet ({weak_hits} matched)")
+    if has_bio_kw:        parts.append("bio keywords found")
+    if has_company:       parts.append("company mentioned")
+    if not parts:         parts.append(
+        f"no name signals (url hits: {url_part_hits}, "
+        f"strong: {strong_hits}, weak: {weak_hits})"
+    )
 
     reason = "[heuristic] " + ", ".join(parts)
     return is_valid, confidence, reason
-
 
 # VALIDATION PROMPT
 def _build_validation_prompt(name: str, company: str, url: str, snippet: str) -> str:
