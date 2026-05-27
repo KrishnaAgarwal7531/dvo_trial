@@ -99,9 +99,20 @@ def _heuristic_validate(url: str, snippet: str, name: str, company: str) -> tupl
 # ─────────────────────────────────────────────────────────────────────────────
 def _build_validation_prompt(name: str, company: str, url: str, snippet: str) -> str:
     company_line = f"Company: {company}\n" if company else ""
+    name_parts = name.strip().split()
+    short_form  = " ".join(name_parts[:2]) if len(name_parts) > 2 else None
+    disambiguation = f"""
+CRITICAL DISAMBIGUATION RULE:
+- Do NOT infer or guess that a different person "could be" or "might be" {name}.
+- When in doubt, return false. Only return true if you are certain.
+The full name is "{name}". This person may also appear as "{short_form}" in some sources.
+- If the snippet only mentions "{short_form}" (without further context linking to THIS specific individual), return false.
+- Only return true if the snippet mentions the FULL name "{name}", OR clearly identifies this specific person via role/company/other unique details that match known facts about them.
+- Do NOT assume "{short_form}" = "{name}" without corroborating evidence in the snippet itself.
+""" if short_form and short_form.lower() != name.lower() else ""
     return f"""Does this snippet contain information about {name}?
-{company_line}URL: {url}
-Snippet: {snippet[:400]}
+{company_line}{disambiguation}URL: {url}
+Snippet: {snippet[:200]}
 
 Return JSON only: {{"is_valid": true, "confidence": "high", "reason": "..."}}"""
 
@@ -231,7 +242,6 @@ def _reconcile(
     # Both medium/low and disagree → conservative reject
     return False, "low", f"[conflict] llm({llm_conf})={llm_valid}: {llm_reason} | heur({heur_conf})={heur_valid}: {heur_reason}", "llm+heuristic"
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # PER-URL VALIDATION — runs LLM + heuristic in parallel, then reconciles
 # ─────────────────────────────────────────────────────────────────────────────
@@ -311,7 +321,7 @@ def run(results: list, name: str, company: str = "") -> tuple:
         print(f"    [{i+1:02d}/{len(unique_urls):02d}] Validating: {url[:70]}")
         val = _validate_url(url, snippet, name, company)
         val_results.append((url, val))
-        time.sleep(1.0)
+        time.sleep(0.3)
 
     # Build cache
     url_cache = {url: val for url, val in val_results}
