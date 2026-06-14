@@ -94,9 +94,9 @@ def aggregate(extractions: list, name: str) -> dict:
             else:
                 best_norm  = most_common[0][0]
                 best_entry = next(a for a in age_pool if a[0] == best_norm)
-            best_age = best_entry[3]
+            best_age = best_entry[0]
             age_src  = best_entry[1]
-        print(f"  [Age] Winner: {best_age} | {fmt_source(age_src)} ✓")
+        print(f"  [Age] Winner: {best_age} (raw={best_entry[3]}, normalised={best_entry[0]}) | {fmt_source(age_src)} ✓")
     else:
         best_age = None
         age_src  = None
@@ -132,6 +132,8 @@ def aggregate(extractions: list, name: str) -> dict:
             weighted_counter[nat] += weight
             if nat not in src_map:
                 src_map[nat] = src
+
+        print(f"    [Nationality DEBUG] weighted counts: {dict(weighted_counter)}")
 
         best_nat = weighted_counter.most_common(1)[0][0]
         nat_src  = src_map[best_nat]
